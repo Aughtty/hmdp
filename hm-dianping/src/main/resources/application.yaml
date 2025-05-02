@@ -25,3 +25,11 @@ mybatis-plus:
 logging:
   level:
     com.hmdp: debug
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method      # 使其显示上传文件
+    disable-swagger-default-url: true
+  api-docs:
+    path: /v3/api-docs

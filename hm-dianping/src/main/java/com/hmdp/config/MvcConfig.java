@@ -27,7 +27,14 @@ public class MvcConfig implements WebMvcConfigurer {
                         "/upload/**",
                         "/user/code",
                         "/user/login",
-                        "/blog/hot"
+                        "/blog/hot",
+
+                        // ✅ 放行 Swagger UI 相关接口
+                        "/swagger-ui.html",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/webjars/**",
+                        "/doc.html"
                 ).order(1);
         // 调高token拦截器的优先级
         registry.addInterceptor(new RefreshTokenInterceptor(stringRedisTemplate)).order(0);
