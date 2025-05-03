@@ -42,10 +42,10 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         //Shop shop = queryWithPassThrough(id);
 
         // 缓存击穿，利用互斥锁解决
-        //Shop shop = queryWithMutex(id);
+        Shop shop = queryWithMutex(id);
 
         // 缓存击穿，利用逻辑过期解决
-        Shop shop = queryWithLogicalExpire(id);
+        // Shop shop = queryWithLogicalExpire(id);
 
 
         if (shop == null) {
