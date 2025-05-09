@@ -9,8 +9,10 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
+import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private ISeckillVoucherService seckillVoucherService;
     @Resource
     private RedisIdWorker redisIdWorker;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public Result seckillVoucher(Long voucherId) {
@@ -53,14 +57,24 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return Result.fail("库存不足");
         }
         Long userId = UserHolder.getUser().getId();
-        // 5.判断用户是否已经购买过
-        // 对于所有加锁方案都需要加注解@Transactional
-        //加锁方案1：对于整个方法createVoucherOrder加锁，该方法的问题是对于每个用户都要加锁，其中的乐观锁也失去了意义
-        //加锁方案2：获取用户id的hash值作为锁的key，锁的粒度更小，锁的范围更小。也就是在函数内加锁，但会出现锁结束后尚未提交其他线程也进入锁中判断
-        //加锁方案3：在外界使用synchronized锁住用户id，锁的粒度更小，锁的范围更小。也就是在函数外加锁，也即本方案
-        synchronized (userId.toString().intern()) {
+        // 创建锁对象           // 需要传入用户id，保证每个用户的锁是独立的
+        SimpleRedisLock simpleRedisLock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
+        // 获取锁
+        boolean isLock = simpleRedisLock.tryLock(1200);
+        // 判断锁是否获取成功
+        if(!isLock) {
+            // 获取锁失败，返回错误信息
+            // 一般失败有两种处理方法，分别是返回错误和重试，此处就是为了防止一个用户下多单，所以不应该重试
+            return Result.fail("不允许重复下单");
+        }
+        // 中间可能出现问题，比如在创建订单时出现异常，导致锁没有释放，故要使用try-finally语句块来释放锁
+        try {
+            // 获取代理对象
             IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
             return proxy.createVoucherOrder(voucherId);
+        } finally {
+            // 释放锁
+            simpleRedisLock.unlock();
         }
     }
 
